@@ -599,7 +599,6 @@
         <div class="segmented">
           <button class="segbtn active" data-view="warehouses">По складам</button>
           <button class="segbtn" data-view="sellers">По селлерам</button>
-          <button class="segbtn" data-view="periods">По периодам</button>
         </div>
 
         <div class="search">
@@ -1095,54 +1094,18 @@ function makeColumns(view){
   if (view === 'warehouses'){
     return [
       { key:'warehouse', label:'Склад', type:'text' },
-      { key:'inbound', label:'Всего на проблемный стол, шт', type:'int' },
-      { key:'inbound_share', label:'Доля потока, %', type:'pct' },
-
-      { key:'barcode_inbound', label:'Баркод-проблемы, шт', type:'int' },
-      { key:'barcode_share', label:'Доля баркод-проблем, %', type:'pct' },
-
-      { key:'success', label:'Успешно, шт', type:'int' },
-      { key:'success_pct', label:'% успеха', type:'pct' },
-
-      { key:'fail', label:'Не удалось, шт', type:'int' },
-      { key:'fail_pct', label:'% не удалось', type:'pct' },
-
-      { key:'confirmed', label:'Подтверждено проблем, шт', type:'int' },
-      { key:'confirmed_pct', label:'% подтверждения', type:'pct' },
-
-      { key:'savings', label:'Экономия селлеров, ₽', type:'money' },
-      { key:'avg_savings_per_item', label:'Экономия/товар, ₽', type:'money' }
+      { key:'north_star_pct', label:'% обезлички на пробл. стол', type:'pct' },
+      { key:'inbound', label:'Товаров на пробл. стол, шт', type:'int' },
+      { key:'success_pct', label:'% успешно обработано', type:'pct' }
     ];
   }
 
-  if (view === 'sellers'){
-    return [
-      { key:'seller_id', label:'ID', type:'int' },
-      { key:'seller_name', label:'Селлер', type:'text' },
-      { key:'adopted', label:'Подключил', type:'bool' },
-      { key:'adopted_at', label:'Дата подключения', type:'text' },
-      { key:'items', label:'Товаров через стол, шт', type:'int' },
-      { key:'savings', label:'Экономия, ₽', type:'money' },
-      { key:'churn_2w', label:'Отключил после 2 недель', type:'bool' },
-      { key:'churned', label:'Отключил', type:'bool' },
-      { key:'churned_at', label:'Дата отключения', type:'text' },
-      { key:'lifetime', label:'Срок использования, дни', type:'int' }
-    ];
-  }
-
-  // periods
+  // sellers
   return [
-    { key:'period', label:'Дата', type:'text' },
-    { key:'inbound', label:'Поток на стол, шт', type:'int' },
-    { key:'barcode_share', label:'Доля баркод-проблем, %', type:'pct' },
-    { key:'success', label:'Успешно, шт', type:'int' },
-    { key:'success_pct', label:'% успеха', type:'pct' },
-    { key:'confirmed', label:'Подтверждено проблем, шт', type:'int' },
-    { key:'confirmed_pct', label:'% подтверждения', type:'pct' },
-    { key:'adoption_pct', label:'Adoption, %', type:'pct' },
-    { key:'churn_2w_pct', label:'Churn 2 недели, %', type:'pct' },
-    { key:'savings', label:'Экономия, ₽', type:'money' },
-    { key:'revenue', label:'Доп. выручка, ₽', type:'money' }
+    { key:'seller_id', label:'ID', type:'int' },
+    { key:'seller_name', label:'Селлер', type:'text' },
+    { key:'items', label:'Товаров через стол, шт', type:'int' },
+    { key:'success_pct', label:'% успешно обработано', type:'pct' }
   ];
 }
 
@@ -1158,164 +1121,74 @@ function getTableRows(){
   const data = state.data;
   const sel = state.selectedWarehouses;
 
-  // Compute per-day and per-warehouse sums for selected warehouses
-  const allRows = [];
   const byWh = new Map();
 
-  // day aggregates
-  const byDay = [];
-
+  // warehouse-level aggregation
   for (const dayBlock of data.byDay){
     const rows = dayBlock.warehouses.filter(r => sel.has(r.warehouse));
-    const inbound = rows.reduce((a,r)=>a+r.inbound_to_problem,0);
-    const success = rows.reduce((a,r)=>a+r.processed_success,0);
-    const fail = rows.reduce((a,r)=>a+r.processed_fail,0);
-    const confirmed = rows.reduce((a,r)=>a+r.confirmed_problems,0);
-    const savings = rows.reduce((a,r)=>a+r.savings_rub,0);
-    const revenue = Math.round(success * 30);
-
-    const north = inbound
-      ? rows.reduce((a,r)=>a + r.barcode_issue_share * r.inbound_to_problem, 0) / inbound
-      : 0;
-
-    const confirmedPct = inbound ? (confirmed/inbound*100) : 0;
-
-    byDay.push({
-      period: dayBlock.date,
-      inbound,
-      barcode_share: north,
-      success,
-      success_pct: inbound ? (success/inbound*100) : 0,
-      confirmed,
-      confirmed_pct: confirmedPct,
-      adoption_pct: null,
-      churn_2w_pct: null,
-      savings,
-      revenue
-    });
-
-    // warehouse-level aggregation
+    
     for (const r of rows){
       if (!byWh.has(r.warehouse)){
         byWh.set(r.warehouse, {
           warehouse: r.warehouse,
-          inbound:0, barcode_inbound:0, barcode_share:0, // barcode_inbound will be proxy inbound*share
-          success:0, fail:0,
-          confirmed:0,
-          savings:0,
-          _barcode_weight:0
+          inbound: 0,
+          success: 0,
+          _barcode_weight: 0
         });
       }
       const o = byWh.get(r.warehouse);
       o.inbound += r.inbound_to_problem;
       o.success += r.processed_success;
-      o.fail += r.processed_fail;
-      o.confirmed += r.confirmed_problems;
-      o.savings += r.savings_rub;
-
-      // weighted avg for share + estimate barcode-inbound
       o._barcode_weight += r.barcode_issue_share * r.inbound_to_problem;
-      o.barcode_inbound += Math.round(r.inbound_to_problem * (r.barcode_issue_share/100));
     }
   }
 
   // finalize warehouse rows
-  const whRows = Array.from(byWh.values()).map(o => {
-    o.barcode_share = o.inbound ? (o._barcode_weight / o.inbound) : 0;
-    o.inbound_share = 0; // fill after total
-    o.success_pct = o.inbound ? (o.success/o.inbound*100) : 0;
-    o.fail_pct = o.inbound ? (o.fail/o.inbound*100) : 0;
-    o.confirmed_pct = o.inbound ? (o.confirmed/o.inbound*100) : 0;
-    o.avg_savings_per_item = o.inbound ? (o.savings / o.inbound) : 0;
-    return o;
-  });
-
-  const totalInbound = whRows.reduce((a,r)=>a+r.inbound,0);
-  whRows.forEach(r => r.inbound_share = totalInbound ? (r.inbound/totalInbound*100) : 0);
-
-  // seller rows (filter doesn't affect sellers in prototype, but we keep it consistent)
-  const sellerRows = data.sellers.map(s => ({
-    seller_id: s.seller_id,
-    seller_name: s.seller_name,
-    adopted: s.adopted,
-    adopted_at: s.adopted_at ?? '—',
-    items: s.items_through_problem_table,
-    savings: s.savings_rub,
-    churn_2w: s.churn_2w,
-    churned: s.churned,
-    churned_at: s.churned_at ?? '—',
-    lifetime: s.lifetime_days
+  const whRows = Array.from(byWh.values()).map(o => ({
+    warehouse: o.warehouse,
+    north_star_pct: o.inbound ? (o._barcode_weight / o.inbound) : 0,
+    inbound: o.inbound,
+    success_pct: o.inbound ? (o.success / o.inbound * 100) : 0
   }));
 
-  // enrich period rows with adoption/churn (period-level; show constant)
-  const adoptedCount = data.sellers.filter(s=>s.adopted).length;
-  const churn2wCount = data.sellers.filter(s=>s.adopted && s.churn_2w).length;
-  const adoptionPct = adoptedCount / data.sellers.length * 100;
-  const churn2wPct = adoptedCount ? (churn2wCount / adoptedCount * 100) : 0;
+  const totalInbound = whRows.reduce((a,r)=>a+r.inbound,0);
+  const totalSuccess = whRows.reduce((a,r)=>a+r.inbound * r.success_pct / 100, 0);
+  const totalNorthWeight = whRows.reduce((a,r)=>a+r.north_star_pct * r.inbound, 0);
 
-  byDay.forEach(d => {
-    d.adoption_pct = adoptionPct;
-    d.churn_2w_pct = churn2wPct;
+  // seller rows
+  const sellerRows = data.sellers.map(s => {
+    const items = s.items_through_problem_table;
+    const successRate = rand(65, 95); // мок-данные для % успеха
+    return {
+      seller_id: s.seller_id,
+      seller_name: s.seller_name,
+      items: items,
+      success_pct: items > 0 ? successRate : 0
+    };
   });
+
+  const totalSellerItems = sellerRows.reduce((a,r)=>a+r.items,0);
+  const avgSellerSuccess = sellerRows.length 
+    ? sellerRows.reduce((a,r)=>a+r.success_pct,0) / sellerRows.length 
+    : 0;
 
   // totals row per view
   const totals = {
-    warehouses: (() => {
-      const t = {
-        warehouse: 'Общее количество',
-        inbound: whRows.reduce((a,r)=>a+r.inbound,0),
-        inbound_share: 100,
-        barcode_inbound: whRows.reduce((a,r)=>a+r.barcode_inbound,0),
-        barcode_share: (whRows.reduce((a,r)=>a + r.barcode_share*r.inbound,0) / (whRows.reduce((a,r)=>a+r.inbound,0) || 1)),
-        success: whRows.reduce((a,r)=>a+r.success,0),
-        success_pct: 0,
-        fail: whRows.reduce((a,r)=>a+r.fail,0),
-        fail_pct: 0,
-        confirmed: whRows.reduce((a,r)=>a+r.confirmed,0),
-        confirmed_pct: 0,
-        savings: whRows.reduce((a,r)=>a+r.savings,0),
-        avg_savings_per_item: 0
-      };
-      t.success_pct = t.inbound ? (t.success/t.inbound*100) : 0;
-      t.fail_pct = t.inbound ? (t.fail/t.inbound*100) : 0;
-      t.confirmed_pct = t.inbound ? (t.confirmed/t.inbound*100) : 0;
-      t.avg_savings_per_item = t.inbound ? (t.savings/t.inbound) : 0;
-      return t;
-    })(),
-    sellers: (() => {
-      const t = {
-        seller_id: '—',
-        seller_name: 'Итого',
-        adopted: `${data.sellers.filter(s=>s.adopted).length} / ${data.sellers.length}`,
-        adopted_at: '—',
-        items: sellerRows.reduce((a,r)=>a+r.items,0),
-        savings: sellerRows.reduce((a,r)=>a+r.savings,0),
-        churn_2w: data.sellers.filter(s=>s.adopted && s.churn_2w).length,
-        churned: data.sellers.filter(s=>s.adopted && s.churned).length,
-        churned_at: '—',
-        lifetime: Math.round(sellerRows.reduce((a,r)=>a+r.lifetime,0) / (sellerRows.length || 1))
-      };
-      return t;
-    })(),
-    periods: (() => {
-      const t = {
-        period: 'Итого / среднее',
-        inbound: byDay.reduce((a,r)=>a+r.inbound,0),
-        barcode_share: byDay.reduce((a,r)=>a+r.barcode_share,0)/(byDay.length||1),
-        success: byDay.reduce((a,r)=>a+r.success,0),
-        success_pct: byDay.reduce((a,r)=>a+r.success_pct,0)/(byDay.length||1),
-        confirmed: byDay.reduce((a,r)=>a+r.confirmed,0),
-        confirmed_pct: byDay.reduce((a,r)=>a+r.confirmed_pct,0)/(byDay.length||1),
-        adoption_pct: adoptionPct,
-        churn_2w_pct: churn2wPct,
-        savings: byDay.reduce((a,r)=>a+r.savings,0),
-        revenue: byDay.reduce((a,r)=>a+r.revenue,0)
-      };
-      return t;
-    })()
+    warehouses: {
+      warehouse: 'Итого',
+      north_star_pct: totalInbound ? (totalNorthWeight / totalInbound) : 0,
+      inbound: totalInbound,
+      success_pct: totalInbound ? (totalSuccess / totalInbound * 100) : 0
+    },
+    sellers: {
+      seller_id: '—',
+      seller_name: 'Итого',
+      items: totalSellerItems,
+      success_pct: avgSellerSuccess
+    }
   };
 
-  return { whRows, sellerRows, byDay, totals };
+  return { whRows, sellerRows, totals };
 }
 
 function applySearch(rows, cols, q){
@@ -1341,11 +1214,9 @@ function sortRows(rows, key, dir){
 
 function renderTable(){
   const cols = makeColumns(state.tableView);
-  const { whRows, sellerRows, byDay, totals } = getTableRows();
+  const { whRows, sellerRows, totals } = getTableRows();
 
-  let rows = state.tableView === 'warehouses'
-    ? whRows
-    : (state.tableView === 'sellers' ? sellerRows : byDay);
+  let rows = state.tableView === 'warehouses' ? whRows : sellerRows;
 
   // search
   rows = applySearch(rows, cols, state.tableSearch);
