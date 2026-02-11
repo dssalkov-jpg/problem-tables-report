@@ -880,53 +880,12 @@ function renderCharts(){
     notInDb: '#FF9800'
   };
   
-  // Создаём графики для каждого склада
-  selectedWarehouses.forEach((warehouse, whIdx) => {
-    // Собираем данные для этого склада
-    const whData = {
-      labels: data.days,
-      totalPct: [],
-      noBarcodePct: [],
-      barcodeIssuePct: [],
-      notInDbPct: [],
-      inbound: [],
-      inboundNoBarcode: [],
-      inboundBarcodeIssue: [],
-      inboundNotInDb: [],
-      successPct: []
-    };
-    
-    for (const dayBlock of data.byDay) {
-      const row = dayBlock.warehouses.find(r => r.warehouse === warehouse);
-      if (row) {
-        whData.totalPct.push(row.barcode_issue_share);
-        whData.noBarcodePct.push(row.no_barcode_share);
-        whData.barcodeIssuePct.push(row.not_scanning_share);
-        whData.notInDbPct.push(row.not_in_db_share);
-        whData.inbound.push(row.inbound_to_problem);
-        // Количество товаров по причинам (вычисляем из % и общего inbound)
-        whData.inboundNoBarcode.push(Math.round(row.inbound_to_problem * row.no_barcode_share / 100));
-        whData.inboundBarcodeIssue.push(Math.round(row.inbound_to_problem * row.not_scanning_share / 100));
-        whData.inboundNotInDb.push(Math.round(row.inbound_to_problem * row.not_in_db_share / 100));
-        whData.successPct.push(row.inbound_to_problem ? (row.processed_success / row.inbound_to_problem * 100) : 0);
-      } else {
-        whData.totalPct.push(0);
-        whData.noBarcodePct.push(0);
-        whData.barcodeIssuePct.push(0);
-        whData.notInDbPct.push(0);
-        whData.inbound.push(0);
-        whData.inboundNoBarcode.push(0);
-        whData.inboundBarcodeIssue.push(0);
-        whData.inboundNotInDb.push(0);
-        whData.successPct.push(0);
-      }
-    }
-    
-    // Создаём HTML секцию для склада
+  // Функция для создания графиков для одной секции
+  function createChartsSection(sectionName, whData, whIdx) {
     const section = document.createElement('div');
     section.className = 'warehouse-section';
     section.innerHTML = `
-      <div class="warehouse-name">${warehouse}</div>
+      <div class="warehouse-name">${sectionName}</div>
       
       <div class="card" style="margin-bottom:14px;">
         <div class="cardhead">
@@ -1121,6 +1080,88 @@ function renderCharts(){
         }
       }
     });
+  }
+  
+  // === Сводная по всем складам ===
+  const summaryData = {
+    labels: data.days,
+    totalPct: [],
+    noBarcodePct: [],
+    barcodeIssuePct: [],
+    notInDbPct: [],
+    inbound: [],
+    inboundNoBarcode: [],
+    inboundBarcodeIssue: [],
+    inboundNotInDb: [],
+    successPct: []
+  };
+  
+  for (const dayBlock of data.byDay) {
+    const rows = dayBlock.warehouses.filter(r => selectedWarehouses.includes(r.warehouse));
+    const totalInbound = rows.reduce((a, r) => a + r.inbound_to_problem, 0);
+    const totalSuccess = rows.reduce((a, r) => a + r.processed_success, 0);
+    
+    // Взвешенные проценты
+    const weightedTotal = totalInbound ? rows.reduce((a, r) => a + r.barcode_issue_share * r.inbound_to_problem, 0) / totalInbound : 0;
+    const weightedNoBarcode = totalInbound ? rows.reduce((a, r) => a + r.no_barcode_share * r.inbound_to_problem, 0) / totalInbound : 0;
+    const weightedBarcodeIssue = totalInbound ? rows.reduce((a, r) => a + r.not_scanning_share * r.inbound_to_problem, 0) / totalInbound : 0;
+    const weightedNotInDb = totalInbound ? rows.reduce((a, r) => a + r.not_in_db_share * r.inbound_to_problem, 0) / totalInbound : 0;
+    
+    summaryData.totalPct.push(weightedTotal);
+    summaryData.noBarcodePct.push(weightedNoBarcode);
+    summaryData.barcodeIssuePct.push(weightedBarcodeIssue);
+    summaryData.notInDbPct.push(weightedNotInDb);
+    summaryData.inbound.push(totalInbound);
+    summaryData.inboundNoBarcode.push(Math.round(totalInbound * weightedNoBarcode / 100));
+    summaryData.inboundBarcodeIssue.push(Math.round(totalInbound * weightedBarcodeIssue / 100));
+    summaryData.inboundNotInDb.push(Math.round(totalInbound * weightedNotInDb / 100));
+    summaryData.successPct.push(totalInbound ? (totalSuccess / totalInbound * 100) : 0);
+  }
+  
+  createChartsSection('Сводная по всем складам', summaryData, 'summary');
+  
+  // === Графики для каждого склада ===
+  selectedWarehouses.forEach((warehouse, whIdx) => {
+    // Собираем данные для этого склада
+    const whData = {
+      labels: data.days,
+      totalPct: [],
+      noBarcodePct: [],
+      barcodeIssuePct: [],
+      notInDbPct: [],
+      inbound: [],
+      inboundNoBarcode: [],
+      inboundBarcodeIssue: [],
+      inboundNotInDb: [],
+      successPct: []
+    };
+    
+    for (const dayBlock of data.byDay) {
+      const row = dayBlock.warehouses.find(r => r.warehouse === warehouse);
+      if (row) {
+        whData.totalPct.push(row.barcode_issue_share);
+        whData.noBarcodePct.push(row.no_barcode_share);
+        whData.barcodeIssuePct.push(row.not_scanning_share);
+        whData.notInDbPct.push(row.not_in_db_share);
+        whData.inbound.push(row.inbound_to_problem);
+        whData.inboundNoBarcode.push(Math.round(row.inbound_to_problem * row.no_barcode_share / 100));
+        whData.inboundBarcodeIssue.push(Math.round(row.inbound_to_problem * row.not_scanning_share / 100));
+        whData.inboundNotInDb.push(Math.round(row.inbound_to_problem * row.not_in_db_share / 100));
+        whData.successPct.push(row.inbound_to_problem ? (row.processed_success / row.inbound_to_problem * 100) : 0);
+      } else {
+        whData.totalPct.push(0);
+        whData.noBarcodePct.push(0);
+        whData.barcodeIssuePct.push(0);
+        whData.notInDbPct.push(0);
+        whData.inbound.push(0);
+        whData.inboundNoBarcode.push(0);
+        whData.inboundBarcodeIssue.push(0);
+        whData.inboundNotInDb.push(0);
+        whData.successPct.push(0);
+      }
+    }
+    
+    createChartsSection(warehouse, whData, whIdx);
   });
 }
 
