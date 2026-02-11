@@ -313,6 +313,28 @@
 
     canvas{ width:100% !important; height: 400px !important; }
 
+    /* Warehouse section */
+    .warehouse-section{
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 2px solid var(--line);
+    }
+    .warehouse-section:first-child{
+      margin-top: 14px;
+      padding-top: 0;
+      border-top: none;
+    }
+    .warehouse-name{
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--accent);
+      text-align: center;
+      margin-bottom: 14px;
+      padding: 10px;
+      background: linear-gradient(90deg, rgba(122,0,255,0.05), rgba(122,0,255,0.1), rgba(122,0,255,0.05));
+      border-radius: 12px;
+    }
+
     /* Table view */
     .table-toolbar{
       display:flex;
@@ -569,27 +591,7 @@
     <div class="kpis" id="kpis"></div>
 
     <!-- CHARTS VIEW -->
-    <div id="chartsView">
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Доля обезличенных товаров, попадающих на проблемные столы</h3>
-          </div>
-          <div class="badge">%</div>
-        </div>
-        <canvas id="cNorthStar"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Кол-во товаров на проблемный стол и % успешно обработанных</h3>
-          </div>
-          <div class="badge">шт / %</div>
-        </div>
-        <canvas id="cFlowSuccess"></canvas>
-      </div>
-    </div>
+    <div id="chartsView"></div>
 
     <!-- TABLE VIEW -->
     <div id="tableView" style="display:none;">
@@ -861,198 +863,224 @@ function makeChart(ctx, config){
   return new Chart(ctx, config);
 }
 
-function renderCharts(series){
+function renderCharts(){
   destroyCharts();
-
-  const common = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { position: 'top', labels: { boxWidth: 14, boxHeight: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
-      tooltip: { callbacks: {} }
-    },
-    scales: {
-      x: { grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { maxRotation:0, autoSkip: true } },
-      y: { grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { callback: (v)=> v } }
-    }
+  
+  const container = document.getElementById('chartsView');
+  container.innerHTML = '';
+  
+  const data = state.data;
+  const selectedWarehouses = Array.from(state.selectedWarehouses);
+  
+  // Цвета для причин обезлички
+  const reasonColors = {
+    total: '#1a1a2e',
+    noBarcode: '#E91E63',
+    barcodeIssue: '#7B68EE', 
+    notInDb: '#FF9800'
   };
-
-  // Плагин для отображения значений на точках
-  const datalabelsPlugin = {
-    id: 'datalabels',
-    afterDatasetsDraw(chart) {
-      const ctx = chart.ctx;
-      chart.data.datasets.forEach((dataset, i) => {
-        const meta = chart.getDatasetMeta(i);
-        if (!meta.hidden) {
-          meta.data.forEach((element, index) => {
-            const value = dataset.data[index];
-            if (value !== null && value !== undefined) {
-              ctx.save();
-              ctx.fillStyle = dataset.borderColor || '#333';
-              ctx.font = 'bold 11px system-ui';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'bottom';
-              ctx.fillText(fmt.pct(value), element.x, element.y - 6);
-              ctx.restore();
+  
+  // Создаём графики для каждого склада
+  selectedWarehouses.forEach((warehouse, whIdx) => {
+    // Собираем данные для этого склада
+    const whData = {
+      labels: data.days,
+      totalPct: [],
+      noBarcodePct: [],
+      barcodeIssuePct: [],
+      notInDbPct: [],
+      inbound: [],
+      successPct: []
+    };
+    
+    for (const dayBlock of data.byDay) {
+      const row = dayBlock.warehouses.find(r => r.warehouse === warehouse);
+      if (row) {
+        whData.totalPct.push(row.barcode_issue_share);
+        whData.noBarcodePct.push(row.no_barcode_share);
+        whData.barcodeIssuePct.push(row.not_scanning_share);
+        whData.notInDbPct.push(row.not_in_db_share);
+        whData.inbound.push(row.inbound_to_problem);
+        whData.successPct.push(row.inbound_to_problem ? (row.processed_success / row.inbound_to_problem * 100) : 0);
+      } else {
+        whData.totalPct.push(0);
+        whData.noBarcodePct.push(0);
+        whData.barcodeIssuePct.push(0);
+        whData.notInDbPct.push(0);
+        whData.inbound.push(0);
+        whData.successPct.push(0);
+      }
+    }
+    
+    // Создаём HTML секцию для склада
+    const section = document.createElement('div');
+    section.className = 'warehouse-section';
+    section.innerHTML = `
+      <div class="warehouse-name">${warehouse}</div>
+      
+      <div class="card" style="margin-bottom:14px;">
+        <div class="cardhead">
+          <div><h3>Доля обезличенных товаров, попадающих на проблемные столы</h3></div>
+          <div class="badge">%</div>
+        </div>
+        <canvas id="cNorthStar_${whIdx}"></canvas>
+      </div>
+      
+      <div class="card">
+        <div class="cardhead">
+          <div><h3>Кол-во товаров на проблемный стол и % успешно обработанных</h3></div>
+          <div class="badge">шт / %</div>
+        </div>
+        <canvas id="cFlowSuccess_${whIdx}"></canvas>
+      </div>
+    `;
+    container.appendChild(section);
+    
+    // Создаём график 1: Доля обезлички с причинами
+    state.charts[`northStar_${whIdx}`] = makeChart(document.getElementById(`cNorthStar_${whIdx}`), {
+      type: 'line',
+      data: {
+        labels: whData.labels,
+        datasets: [
+          {
+            label: 'Общее значение',
+            data: whData.totalPct,
+            borderColor: reasonColors.total,
+            backgroundColor: reasonColors.total,
+            borderWidth: 3,
+            pointRadius: 4,
+            tension: 0.1
+          },
+          {
+            label: 'Баркода нет на вещи',
+            data: whData.noBarcodePct,
+            borderColor: reasonColors.noBarcode,
+            backgroundColor: reasonColors.noBarcode,
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1
+          },
+          {
+            label: 'Проблема с баркодом',
+            data: whData.barcodeIssuePct,
+            borderColor: reasonColors.barcodeIssue,
+            backgroundColor: reasonColors.barcodeIssue,
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1
+          },
+          {
+            label: 'Баркода нет в базе',
+            data: whData.notInDbPct,
+            borderColor: reasonColors.notInDb,
+            backgroundColor: reasonColors.notInDb,
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'start',
+            labels: {
+              boxWidth: 12,
+              boxHeight: 12,
+              usePointStyle: true,
+              pointStyle: 'rect',
+              padding: 15,
+              font: { size: 12, weight: '600' }
+            },
+            onClick: function(e, legendItem, legend) {
+              const index = legendItem.datasetIndex;
+              const ci = legend.chart;
+              const meta = ci.getDatasetMeta(index);
+              meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+              ci.update();
             }
-          });
-        }
-      });
-    }
-  };
-
-  // 1) North Star — % обезлички на проблемные столы
-  state.charts.northStar = makeChart(document.getElementById('cNorthStar'), {
-    type:'line',
-    data:{
-      labels: series.labels,
-      datasets:[
-        {
-          label:'% обезлички на проблемные столы',
-          data: series.northStarPct,
-          borderColor: '#7B68EE',
-          backgroundColor: '#7B68EE',
-          borderWidth: 3,
-          pointRadius: 5,
-          pointBackgroundColor: '#7B68EE',
-          tension: 0.1
-        }
-      ]
-    },
-    plugins: [datalabelsPlugin],
-    options: {
-      ...common,
-      plugins: {
-        legend: {
-          position: 'top',
-          align: 'start',
-          labels: {
-            boxWidth: 12,
-            boxHeight: 12,
-            usePointStyle: true,
-            pointStyle: 'rect',
-            padding: 15,
-            font: { size: 12, weight: '600' }
-          }
+          },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt.pct(c.parsed.y)}` } }
         },
-        tooltip: { callbacks: { label: (c)=> `${c.dataset.label}: ${fmt.pct(c.parsed.y)}` } }
-      },
-      scales: {
-        x: { 
-          grid: { color: 'rgba(0,0,0,0.06)' }, 
-          ticks: { maxRotation: 0, autoSkip: false, font: { size: 11 } } 
-        },
-        y: { 
-          grid: { color: 'rgba(0,0,0,0.06)' }, 
-          suggestedMin: 0, 
-          suggestedMax: 50, 
-          ticks: { callback: (v) => `${v}%`, stepSize: 10 } 
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { maxRotation: 0, autoSkip: false, font: { size: 11 } } },
+          y: { grid: { color: 'rgba(0,0,0,0.06)' }, suggestedMin: 0, suggestedMax: 40, ticks: { callback: (v) => `${v}%`, stepSize: 10 } }
         }
       }
-    }
-  });
-
-  // 2) Поток и успешность — 2 линии с двумя осями Y
-  state.charts.flowSuccess = makeChart(document.getElementById('cFlowSuccess'), {
-    type:'line',
-    data:{
-      labels: series.labels,
-      datasets:[
-        {
-          label:'Кол-во товаров на проблемный стол, шт',
-          data: series.inbound,
-          borderColor: '#1a1a2e',
-          backgroundColor: '#1a1a2e',
-          borderWidth: 3,
-          pointRadius: 5,
-          pointBackgroundColor: '#1a1a2e',
-          tension: 0.1,
-          yAxisID: 'y'
-        },
-        {
-          label:'% успешно обработано',
-          data: series.successPct,
-          borderColor: '#4CAF50',
-          backgroundColor: '#4CAF50',
-          borderWidth: 3,
-          pointRadius: 5,
-          pointBackgroundColor: '#4CAF50',
-          tension: 0.1,
-          yAxisID: 'y2'
-        }
-      ]
-    },
-    plugins: [{
-      id: 'datalabels2',
-      afterDatasetsDraw(chart) {
-        const ctx = chart.ctx;
-        chart.data.datasets.forEach((dataset, i) => {
-          const meta = chart.getDatasetMeta(i);
-          if (!meta.hidden) {
-            meta.data.forEach((element, index) => {
-              const value = dataset.data[index];
-              if (value !== null && value !== undefined) {
-                ctx.save();
-                ctx.fillStyle = dataset.borderColor || '#333';
-                ctx.font = 'bold 11px system-ui';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                const text = dataset.yAxisID === 'y2' ? fmt.pct(value) : fmt.int(value);
-                ctx.fillText(text, element.x, element.y - 6);
-                ctx.restore();
+    });
+    
+    // Создаём график 2: Поток и успешность
+    state.charts[`flowSuccess_${whIdx}`] = makeChart(document.getElementById(`cFlowSuccess_${whIdx}`), {
+      type: 'line',
+      data: {
+        labels: whData.labels,
+        datasets: [
+          {
+            label: 'Кол-во товаров на проблемный стол, шт',
+            data: whData.inbound,
+            borderColor: '#1a1a2e',
+            backgroundColor: '#1a1a2e',
+            borderWidth: 3,
+            pointRadius: 4,
+            tension: 0.1,
+            yAxisID: 'y'
+          },
+          {
+            label: '% успешно обработано',
+            data: whData.successPct,
+            borderColor: '#4CAF50',
+            backgroundColor: '#4CAF50',
+            borderWidth: 3,
+            pointRadius: 4,
+            tension: 0.1,
+            yAxisID: 'y2'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'start',
+            labels: {
+              boxWidth: 12,
+              boxHeight: 12,
+              usePointStyle: true,
+              pointStyle: 'rect',
+              padding: 15,
+              font: { size: 12, weight: '600' }
+            },
+            onClick: function(e, legendItem, legend) {
+              const index = legendItem.datasetIndex;
+              const ci = legend.chart;
+              const meta = ci.getDatasetMeta(index);
+              meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+              ci.update();
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                if (c.dataset.yAxisID === 'y2') return `${c.dataset.label}: ${fmt.pct(c.parsed.y)}`;
+                return `${c.dataset.label}: ${fmt.int(c.parsed.y)} шт`;
               }
-            });
-          }
-        });
-      }
-    }],
-    options: {
-      ...common,
-      plugins: {
-        legend: {
-          position: 'top',
-          align: 'start',
-          labels: {
-            boxWidth: 12,
-            boxHeight: 12,
-            usePointStyle: true,
-            pointStyle: 'rect',
-            padding: 15,
-            font: { size: 12, weight: '600' }
+            }
           }
         },
-        tooltip: { 
-          callbacks: { 
-            label: (c)=> {
-              if (c.dataset.yAxisID === 'y2') return `${c.dataset.label}: ${fmt.pct(c.parsed.y)}`;
-              return `${c.dataset.label}: ${fmt.int(c.parsed.y)} шт`;
-            } 
-          } 
-        }
-      },
-      scales: {
-        x: { 
-          grid: { color: 'rgba(0,0,0,0.06)' }, 
-          ticks: { maxRotation: 0, autoSkip: false, font: { size: 11 } } 
-        },
-        y: { 
-          position: 'left',
-          grid: { color: 'rgba(0,0,0,0.06)' }, 
-          ticks: { callback: (v) => fmt.int(v) },
-          title: { display: true, text: 'шт', font: { weight: '600' } }
-        },
-        y2: {
-          position: 'right',
-          grid: { drawOnChartArea: false },
-          suggestedMin: 0,
-          suggestedMax: 100,
-          ticks: { callback: (v) => `${v}%` },
-          title: { display: true, text: '%', font: { weight: '600' } }
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { maxRotation: 0, autoSkip: false, font: { size: 11 } } },
+          y: { position: 'left', grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { callback: (v) => fmt.int(v) }, title: { display: true, text: 'шт', font: { weight: '600' } } },
+          y2: { position: 'right', grid: { drawOnChartArea: false }, suggestedMin: 0, suggestedMax: 100, ticks: { callback: (v) => `${v}%` }, title: { display: true, text: '%', font: { weight: '600' } } }
         }
       }
-    }
+    });
   });
 }
 
@@ -1337,7 +1365,7 @@ function refreshAll({regen=false}={}){
 
   const { series, kpis } = computeAggregates(state.data, state.selectedWarehouses);
   renderKPIs(kpis);
-  renderCharts(series);
+  renderCharts();
 
   // table depends on state; render if visible or keep ready
   if (state.viewTab === 'table') renderTable();
