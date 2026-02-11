@@ -8,9 +8,11 @@
 ### Просмотр отчетов
 
 После включения GitHub Pages, отчеты будут доступны по адресу:
-- Главная страница: `https://dssalkov-jpg.github.io/problem-tables-report/`
-- Прототип отчета: `https://dssalkov-jpg.github.io/problem-tables-report/report2.html`
-- Базовый отчет: `https://dssalkov-jpg.github.io/problem-tables-report/report.html`
+- Главная страница: `https://<USERNAME>.github.io/problem-tables-report/`
+- Прототип отчета: `https://<USERNAME>.github.io/problem-tables-report/report2.html`
+- Базовый отчет: `https://<USERNAME>.github.io/problem-tables-report/report.html`
+
+Замените `<USERNAME>` на имя владельца репозитория.
 
 ### Настройка GitHub Pages
 
