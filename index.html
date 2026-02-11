@@ -314,8 +314,7 @@
     .kpi .val{ font-size:22px; font-weight:950; margin-top:6px; letter-spacing:0.2px; }
     .kpi .delta{ margin-top:6px; font-size:12px; color:var(--muted); font-weight:700; }
 
-    canvas{ width:100% !important; height: 320px !important; }
-    .chart-sm canvas{ height: 280px !important; }
+    canvas{ width:100% !important; height: 400px !important; }
 
     /* Table view */
     .table-toolbar{
@@ -574,87 +573,81 @@
 
     <!-- CHARTS VIEW -->
     <div id="chartsView">
-      <div class="grid two">
-        <div class="card">
-          <div class="cardhead">
-            <div>
-              <h3>North Star: доля обезлички из-за баркодов</h3>
-              <div class="sub">Линия по времени. Пунктиры: 28% / 18% / 11% как ориентиры сценариев.</div>
-            </div>
-            <div class="badge">%</div>
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>North Star: доля обезлички из-за баркодов</h3>
+            <div class="sub">Линия по времени. Пунктиры: 28% / 18% / 11% как ориентиры сценариев.</div>
           </div>
-          <canvas id="cNorthStar"></canvas>
+          <div class="badge">%</div>
         </div>
-
-        <div class="card">
-          <div class="cardhead">
-            <div>
-              <h3>Экономика: доп. выручка</h3>
-              <div class="sub">Столбцы — факт по периодам. Линии — ориентиры сценариев.</div>
-            </div>
-            <div class="badge">₽</div>
-          </div>
-          <canvas id="cRevenue"></canvas>
-        </div>
+        <canvas id="cNorthStar"></canvas>
       </div>
 
-      <div class="grid three">
-        <div class="card chart-sm">
-          <div class="cardhead">
-            <div>
-              <h3>Пользовательская: подключение услуги (adoption)</h3>
-              <div class="sub">Доля селлеров, подключивших услугу.</div>
-            </div>
-            <div class="badge">%</div>
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>Экономика: доп. выручка</h3>
+            <div class="sub">Столбцы — факт по периодам. Линии — ориентиры сценариев.</div>
           </div>
-          <canvas id="cAdoption"></canvas>
+          <div class="badge">₽</div>
         </div>
-
-        <div class="card chart-sm">
-          <div class="cardhead">
-            <div>
-              <h3>Пользовательская: отключение после 2 недель</h3>
-              <div class="sub">Early churn: доля отключивших после 2 недель.</div>
-            </div>
-            <div class="badge">%</div>
-          </div>
-          <canvas id="cChurn2w"></canvas>
-        </div>
-
-        <div class="card chart-sm">
-          <div class="cardhead">
-            <div>
-              <h3>Пользовательская ценность: экономия селлеров</h3>
-              <div class="sub">Суммарная экономия подключивших услугу.</div>
-            </div>
-            <div class="badge">₽</div>
-          </div>
-          <canvas id="cSavings"></canvas>
-        </div>
+        <canvas id="cRevenue"></canvas>
       </div>
 
-      <div class="grid two">
-        <div class="card">
-          <div class="cardhead">
-            <div>
-              <h3>Операционка: поток на проблемный стол</h3>
-              <div class="sub">Кол-во товаров, переданных на проблемный стол.</div>
-            </div>
-            <div class="badge">шт</div>
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>Пользовательская: подключение услуги (adoption)</h3>
+            <div class="sub">Доля селлеров, подключивших услугу.</div>
           </div>
-          <canvas id="cFlow"></canvas>
+          <div class="badge">%</div>
         </div>
+        <canvas id="cAdoption"></canvas>
+      </div>
 
-        <div class="card">
-          <div class="cardhead">
-            <div>
-              <h3>Операционка: успешность обработки</h3>
-              <div class="sub">Столбцы — успешно (шт). Линия — % успеха. (Жёлтые метрики не используем.)</div>
-            </div>
-            <div class="badge">шт / %</div>
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>Пользовательская: отключение после 2 недель</h3>
+            <div class="sub">Early churn: доля отключивших после 2 недель.</div>
           </div>
-          <canvas id="cSuccess"></canvas>
+          <div class="badge">%</div>
         </div>
+        <canvas id="cChurn2w"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>Пользовательская ценность: экономия селлеров</h3>
+            <div class="sub">Суммарная экономия подключивших услугу.</div>
+          </div>
+          <div class="badge">₽</div>
+        </div>
+        <canvas id="cSavings"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>Операционка: поток на проблемный стол</h3>
+            <div class="sub">Кол-во товаров, переданных на проблемный стол.</div>
+          </div>
+          <div class="badge">шт</div>
+        </div>
+        <canvas id="cFlow"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="cardhead">
+          <div>
+            <h3>Операционка: успешность обработки</h3>
+            <div class="sub">Столбцы — успешно (шт). Линия — % успеха.</div>
+          </div>
+          <div class="badge">шт / %</div>
+        </div>
+        <canvas id="cSuccess"></canvas>
       </div>
     </div>
 
