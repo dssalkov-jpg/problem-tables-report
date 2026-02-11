@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проблемные столы — Отчеты</title>
+    <style>
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f6f5f8;
+        }
+        h1 {
+            color: #7A00FF;
+        }
+        .reports {
+            list-style: none;
+            padding: 0;
+        }
+        .reports li {
+            margin: 15px 0;
+        }
+        .reports a {
+            display: block;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            text-decoration: none;
+            color: #1b1b1f;
+            box-shadow: 0 8px 24px rgba(19, 19, 33, 0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .reports a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(19, 19, 33, 0.12);
+        }
+        .reports a strong {
+            color: #7A00FF;
+            font-size: 1.2em;
+        }
+        .reports a p {
+            margin: 5px 0 0 0;
+            color: #6c6c77;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Отчеты по проблемным столам</h1>
+    <ul class="reports">
+        <li>
+            <a href="report2.html">
+                <strong>Проблемные столы — прототип отчета</strong>
+                <p>Детальный отчет с визуализацией проблемных элементов</p>
+            </a>
+        </li>
+        <li>
+            <a href="report.html">
+                <strong>Базовый отчет</strong>
+                <p>Простой отчет</p>
+            </a>
+        </li>
+    </ul>
+</body>
+</html>
