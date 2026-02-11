@@ -890,6 +890,9 @@ function renderCharts(){
       barcodeIssuePct: [],
       notInDbPct: [],
       inbound: [],
+      inboundNoBarcode: [],
+      inboundBarcodeIssue: [],
+      inboundNotInDb: [],
       successPct: []
     };
     
@@ -901,6 +904,10 @@ function renderCharts(){
         whData.barcodeIssuePct.push(row.not_scanning_share);
         whData.notInDbPct.push(row.not_in_db_share);
         whData.inbound.push(row.inbound_to_problem);
+        // Количество товаров по причинам (вычисляем из % и общего inbound)
+        whData.inboundNoBarcode.push(Math.round(row.inbound_to_problem * row.no_barcode_share / 100));
+        whData.inboundBarcodeIssue.push(Math.round(row.inbound_to_problem * row.not_scanning_share / 100));
+        whData.inboundNotInDb.push(Math.round(row.inbound_to_problem * row.not_in_db_share / 100));
         whData.successPct.push(row.inbound_to_problem ? (row.processed_success / row.inbound_to_problem * 100) : 0);
       } else {
         whData.totalPct.push(0);
@@ -908,6 +915,9 @@ function renderCharts(){
         whData.barcodeIssuePct.push(0);
         whData.notInDbPct.push(0);
         whData.inbound.push(0);
+        whData.inboundNoBarcode.push(0);
+        whData.inboundBarcodeIssue.push(0);
+        whData.inboundNotInDb.push(0);
         whData.successPct.push(0);
       }
     }
@@ -1013,19 +1023,49 @@ function renderCharts(){
       }
     });
     
-    // Создаём график 2: Поток и успешность
+    // Создаём график 2: Поток и успешность с разбивкой по причинам
     state.charts[`flowSuccess_${whIdx}`] = makeChart(document.getElementById(`cFlowSuccess_${whIdx}`), {
       type: 'line',
       data: {
         labels: whData.labels,
         datasets: [
           {
-            label: 'Кол-во товаров на проблемный стол, шт',
+            label: 'Общее кол-во товаров, шт',
             data: whData.inbound,
-            borderColor: '#1a1a2e',
-            backgroundColor: '#1a1a2e',
+            borderColor: reasonColors.total,
+            backgroundColor: reasonColors.total,
             borderWidth: 3,
             pointRadius: 4,
+            tension: 0.1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Баркода нет на вещи, шт',
+            data: whData.inboundNoBarcode,
+            borderColor: reasonColors.noBarcode,
+            backgroundColor: reasonColors.noBarcode,
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Проблема с баркодом, шт',
+            data: whData.inboundBarcodeIssue,
+            borderColor: reasonColors.barcodeIssue,
+            backgroundColor: reasonColors.barcodeIssue,
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Баркода нет в базе, шт',
+            data: whData.inboundNotInDb,
+            borderColor: reasonColors.notInDb,
+            backgroundColor: reasonColors.notInDb,
+            borderWidth: 2,
+            pointRadius: 3,
             tension: 0.1,
             yAxisID: 'y'
           },
@@ -1069,7 +1109,7 @@ function renderCharts(){
             callbacks: {
               label: (c) => {
                 if (c.dataset.yAxisID === 'y2') return `${c.dataset.label}: ${fmt.pct(c.parsed.y)}`;
-                return `${c.dataset.label}: ${fmt.int(c.parsed.y)} шт`;
+                return `${c.dataset.label}: ${fmt.int(c.parsed.y)}`;
               }
             }
           }
