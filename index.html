@@ -573,8 +573,7 @@
       <div class="card" style="margin-top:14px;">
         <div class="cardhead">
           <div>
-            <h3>% обезлички на проблемные столы</h3>
-            <div class="sub">Доля обезличенных товаров, попадающих на проблемные столы</div>
+            <h3>Доля обезличенных товаров, попадающих на проблемные столы</h3>
           </div>
           <div class="badge">%</div>
         </div>
@@ -584,8 +583,7 @@
       <div class="card" style="margin-top:14px;">
         <div class="cardhead">
           <div>
-            <h3>Поток и успешность обработки</h3>
-            <div class="sub">Кол-во товаров на проблемный стол и % успешно обработанных</div>
+            <h3>Кол-во товаров на проблемный стол и % успешно обработанных</h3>
           </div>
           <div class="badge">шт / %</div>
         </div>
@@ -1068,7 +1066,7 @@ function renderKPIs(kpis){
   const cards = [
     { name:'North Star: % на проблемные столы', val: fmt.pct(kpis.avgNorth), delta:'Доля обезлички → проблемные столы' },
     { name:'Поток на проблемный стол', val: `${fmt.int(kpis.totalInbound)} шт`, delta:'За выбранный период' },
-    { name:'% успешно обработано', val: fmt.pct(kpis.successRate), delta:'Успех = успешно / поступившие' },
+{ name:'% успешно обработано', val: fmt.pct(kpis.successRate), delta:'' },
   ];
 
   for (const c of cards){
