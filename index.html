@@ -293,14 +293,11 @@
 
     .kpis{
       display:grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap:14px;
       margin-top:14px;
     }
-    @media (max-width: 1100px){
-      .kpis{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 650px){
+    @media (max-width: 900px){
       .kpis{ grid-template-columns: 1fr; }
     }
     .kpi{
@@ -576,8 +573,8 @@
       <div class="card" style="margin-top:14px;">
         <div class="cardhead">
           <div>
-            <h3>North Star: доля обезлички из-за баркодов</h3>
-            <div class="sub">Линия по времени. Пунктиры: 28% / 18% / 11% как ориентиры сценариев.</div>
+            <h3>% обезлички на проблемные столы</h3>
+            <div class="sub">Доля обезличенных товаров, попадающих на проблемные столы</div>
           </div>
           <div class="badge">%</div>
         </div>
@@ -587,67 +584,12 @@
       <div class="card" style="margin-top:14px;">
         <div class="cardhead">
           <div>
-            <h3>Экономика: доп. выручка</h3>
-            <div class="sub">Столбцы — факт по периодам. Линии — ориентиры сценариев.</div>
-          </div>
-          <div class="badge">₽</div>
-        </div>
-        <canvas id="cRevenue"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Пользовательская: подключение услуги (adoption)</h3>
-            <div class="sub">Доля селлеров, подключивших услугу.</div>
-          </div>
-          <div class="badge">%</div>
-        </div>
-        <canvas id="cAdoption"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Пользовательская: отключение после 2 недель</h3>
-            <div class="sub">Early churn: доля отключивших после 2 недель.</div>
-          </div>
-          <div class="badge">%</div>
-        </div>
-        <canvas id="cChurn2w"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Пользовательская ценность: экономия селлеров</h3>
-            <div class="sub">Суммарная экономия подключивших услугу.</div>
-          </div>
-          <div class="badge">₽</div>
-        </div>
-        <canvas id="cSavings"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Операционка: поток на проблемный стол</h3>
-            <div class="sub">Кол-во товаров, переданных на проблемный стол.</div>
-          </div>
-          <div class="badge">шт</div>
-        </div>
-        <canvas id="cFlow"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="cardhead">
-          <div>
-            <h3>Операционка: успешность обработки</h3>
-            <div class="sub">Столбцы — успешно (шт). Линия — % успеха.</div>
+            <h3>Поток и успешность обработки</h3>
+            <div class="sub">Кол-во товаров на проблемный стол и % успешно обработанных</div>
           </div>
           <div class="badge">шт / %</div>
         </div>
-        <canvas id="cSuccess"></canvas>
+        <canvas id="cFlowSuccess"></canvas>
       </div>
     </div>
 
@@ -770,8 +712,17 @@ function generateData(from, to){
       const base = 250 + idx*22 + rint(-40, 60);
 
       const inbound = clamp(Math.round(base * rand(0.75, 1.25)), 20, 2200);
-      // barcode-issue share: 8..32
-      const barcodeShare = clamp(rand(8, 32) + Math.sin((day.getTime()/8.64e7)/6)*3, 6, 38);
+      
+      // Общая доля обезлички: 15..35%
+      const totalAnonymousShare = clamp(rand(15, 35) + Math.sin((day.getTime()/8.64e7)/6)*3, 12, 40);
+      
+      // Доля обезлички по причине баркода (сумма 3 причин) — часть от общей
+      const barcodeShare = clamp(totalAnonymousShare * rand(0.5, 0.75), 6, 30);
+      
+      // Разбивка по причинам баркода:
+      const noBarcode = clamp(barcodeShare * rand(0.3, 0.45), 2, 15);        // нет баркода на вещи
+      const notScanning = clamp(barcodeShare * rand(0.25, 0.4), 1, 12);      // не сканируется баркод  
+      const notInDb = clamp(barcodeShare - noBarcode - notScanning, 1, 10);  // нет баркода в базе
 
       // success rate 68..92
       const successRate = clamp(rand(68, 92) - (barcodeShare-18)*0.25, 55, 95);
@@ -787,7 +738,11 @@ function generateData(from, to){
       return {
         date, warehouse: wh,
         inbound_to_problem: inbound,
+        total_anonymous_share: totalAnonymousShare,
         barcode_issue_share: barcodeShare,
+        no_barcode_share: noBarcode,
+        not_scanning_share: notScanning,
+        not_in_db_share: notInDb,
         processed_success: success,
         processed_fail: fail,
         confirmed_problems: confirmed,
@@ -858,21 +813,11 @@ function computeAggregates(data, selectedWarehouses){
 
   const series = {
     labels: days,
-    northStarPct: [],
-    inbound: [],
+    northStarPct: [],  // % обезлички на проблемные столы
+    inbound: [],       // кол-во товаров на проблемный стол
     success: [],
-    successPct: [],
-    savings: [],
-    revenue: [],
-    adoptionPct: [],
-    churn2wPct: []
+    successPct: []     // % успешно обработано
   };
-
-  // Seller metrics are period-level; we will keep them constant over time but show as line for demo
-  const adoptedCount = data.sellers.filter(s=>s.adopted).length;
-  const churn2wCount = data.sellers.filter(s=>s.adopted && s.churn_2w).length;
-  const adoptionPct = adoptedCount / data.sellers.length * 100;
-  const churn2wPct = adoptedCount ? (churn2wCount / adoptedCount * 100) : 0;
 
   // Build daily aggregates
   for (const dayBlock of data.byDay){
@@ -880,35 +825,21 @@ function computeAggregates(data, selectedWarehouses){
 
     const inbound = rows.reduce((a,r)=>a+r.inbound_to_problem,0);
     const success = rows.reduce((a,r)=>a+r.processed_success,0);
-    const fail = rows.reduce((a,r)=>a+r.processed_fail,0);
-    const confirmed = rows.reduce((a,r)=>a+r.confirmed_problems,0);
-    const savings = rows.reduce((a,r)=>a+r.savings_rub,0);
 
-    // weighted barcode issue share by inbound
-    const north = inbound
+    // North Star: % обезлички на проблемные столы (weighted by inbound)
+    const northStar = inbound
       ? rows.reduce((a,r)=>a + r.barcode_issue_share * r.inbound_to_problem, 0) / inbound
       : 0;
 
-    // revenue proxy: platform margin approx 30₽ per successfully processed item + noise
-    const revenue = Math.round(success * rand(22, 40));
-
-    series.northStarPct.push(north);
+    series.northStarPct.push(northStar);
     series.inbound.push(inbound);
     series.success.push(success);
     series.successPct.push(inbound ? (success / inbound * 100) : 0);
-    series.savings.push(savings);
-    series.revenue.push(revenue);
-
-    // show adoption/churn as "flat-ish" but with slight wiggle
-    series.adoptionPct.push(clamp(adoptionPct + rand(-0.6, 0.6), 0, 100));
-    series.churn2wPct.push(clamp(churn2wPct + rand(-0.8, 0.8), 0, 100));
   }
 
   // KPIs period-level
   const totalInbound = series.inbound.reduce((a,b)=>a+b,0);
   const totalSuccess = series.success.reduce((a,b)=>a+b,0);
-  const totalSavings = series.savings.reduce((a,b)=>a+b,0);
-  const totalRevenue = series.revenue.reduce((a,b)=>a+b,0);
 
   const avgNorth = series.northStarPct.length
     ? series.northStarPct.reduce((a,b)=>a+b,0) / series.northStarPct.length
@@ -919,13 +850,7 @@ function computeAggregates(data, selectedWarehouses){
   const kpis = {
     avgNorth,
     totalInbound,
-    successRate,
-    totalSavings,
-    totalRevenue,
-    adoptionPct,
-    churn2wPct,
-    sellersTotal: data.sellers.length,
-    sellersAdopted: adoptedCount
+    successRate
   };
 
   return { series, kpis };
@@ -960,172 +885,178 @@ function renderCharts(series){
     }
   };
 
-  // 1) North Star with scenario reference lines
-  const nsTargets = {
-    pos: 28,
-    real: 18,
-    neg: 11
+  // Плагин для отображения значений на точках
+  const datalabelsPlugin = {
+    id: 'datalabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.data.datasets.forEach((dataset, i) => {
+        const meta = chart.getDatasetMeta(i);
+        if (!meta.hidden) {
+          meta.data.forEach((element, index) => {
+            const value = dataset.data[index];
+            if (value !== null && value !== undefined) {
+              ctx.save();
+              ctx.fillStyle = dataset.borderColor || '#333';
+              ctx.font = 'bold 11px system-ui';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(fmt.pct(value), element.x, element.y - 6);
+              ctx.restore();
+            }
+          });
+        }
+      });
+    }
   };
+
+  // 1) North Star — % обезлички на проблемные столы
   state.charts.northStar = makeChart(document.getElementById('cNorthStar'), {
     type:'line',
     data:{
       labels: series.labels,
       datasets:[
         {
-          label:'Доля обезлички (баркоды), %',
+          label:'% обезлички на проблемные столы',
           data: series.northStarPct,
-          borderWidth:3,
-          pointRadius:2,
-          tension:0.25
-        },
-        { label:'Ориентир (позитив) 28%', data: series.labels.map(()=>nsTargets.pos), borderDash:[8,6], borderWidth:2, pointRadius:0 },
-        { label:'Ориентир (реалист) 18%', data: series.labels.map(()=>nsTargets.real), borderDash:[8,6], borderWidth:2, pointRadius:0 },
-        { label:'Ориентир (негатив) 11%', data: series.labels.map(()=>nsTargets.neg), borderDash:[8,6], borderWidth:2, pointRadius:0 }
+          borderColor: '#7B68EE',
+          backgroundColor: '#7B68EE',
+          borderWidth: 3,
+          pointRadius: 5,
+          pointBackgroundColor: '#7B68EE',
+          tension: 0.1
+        }
       ]
     },
+    plugins: [datalabelsPlugin],
     options: {
       ...common,
       plugins: {
-        ...common.plugins,
+        legend: {
+          position: 'top',
+          align: 'start',
+          labels: {
+            boxWidth: 12,
+            boxHeight: 12,
+            usePointStyle: true,
+            pointStyle: 'rect',
+            padding: 15,
+            font: { size: 12, weight: '600' }
+          }
+        },
         tooltip: { callbacks: { label: (c)=> `${c.dataset.label}: ${fmt.pct(c.parsed.y)}` } }
       },
       scales: {
-        ...common.scales,
-        y: { ...common.scales.y, suggestedMin: 0, suggestedMax: 40, ticks:{ callback:(v)=> `${v}%` } }
+        x: { 
+          grid: { color: 'rgba(0,0,0,0.06)' }, 
+          ticks: { maxRotation: 0, autoSkip: false, font: { size: 11 } } 
+        },
+        y: { 
+          grid: { color: 'rgba(0,0,0,0.06)' }, 
+          suggestedMin: 0, 
+          suggestedMax: 50, 
+          ticks: { callback: (v) => `${v}%`, stepSize: 10 } 
+        }
       }
     }
   });
 
-  // 2) Revenue bars + scenario lines (scaled to period)
-  // Convert your 12-month scenario targets into per-period guideline
-  // (just for prototype: distribute evenly by number of days)
-  const pos12m = 225_889_635;
-  const real12m = 141_187_272;
-  const neg12m = 84_712_364;
-
-  const daysCount = Math.max(1, series.labels.length);
-  const posPerDay = pos12m / 365;
-  const realPerDay = real12m / 365;
-  const negPerDay = neg12m / 365;
-
-  state.charts.revenue = makeChart(document.getElementById('cRevenue'), {
-    type:'bar',
+  // 2) Поток и успешность — 2 линии с двумя осями Y
+  state.charts.flowSuccess = makeChart(document.getElementById('cFlowSuccess'), {
+    type:'line',
     data:{
       labels: series.labels,
       datasets:[
-        { label:'Доп. выручка (факт), ₽', data: series.revenue, borderWidth:0 },
-        { type:'line', label:'Ориентир (позитив)', data: series.labels.map(()=>posPerDay), borderDash:[8,6], borderWidth:2, pointRadius:0 },
-        { type:'line', label:'Ориентир (реалист)', data: series.labels.map(()=>realPerDay), borderDash:[8,6], borderWidth:2, pointRadius:0 },
-        { type:'line', label:'Ориентир (негатив)', data: series.labels.map(()=>negPerDay), borderDash:[8,6], borderWidth:2, pointRadius:0 },
+        {
+          label:'Кол-во товаров на проблемный стол, шт',
+          data: series.inbound,
+          borderColor: '#1a1a2e',
+          backgroundColor: '#1a1a2e',
+          borderWidth: 3,
+          pointRadius: 5,
+          pointBackgroundColor: '#1a1a2e',
+          tension: 0.1,
+          yAxisID: 'y'
+        },
+        {
+          label:'% успешно обработано',
+          data: series.successPct,
+          borderColor: '#4CAF50',
+          backgroundColor: '#4CAF50',
+          borderWidth: 3,
+          pointRadius: 5,
+          pointBackgroundColor: '#4CAF50',
+          tension: 0.1,
+          yAxisID: 'y2'
+        }
       ]
     },
-    options:{
-      ...common,
-      plugins:{
-        ...common.plugins,
-        tooltip: { callbacks: { label: (c)=> `${c.dataset.label}: ${fmt.money(c.parsed.y)}` } }
-      },
-      scales:{
-        ...common.scales,
-        y:{ ...common.scales.y, ticks:{ callback:(v)=> fmt.int(v) } }
+    plugins: [{
+      id: 'datalabels2',
+      afterDatasetsDraw(chart) {
+        const ctx = chart.ctx;
+        chart.data.datasets.forEach((dataset, i) => {
+          const meta = chart.getDatasetMeta(i);
+          if (!meta.hidden) {
+            meta.data.forEach((element, index) => {
+              const value = dataset.data[index];
+              if (value !== null && value !== undefined) {
+                ctx.save();
+                ctx.fillStyle = dataset.borderColor || '#333';
+                ctx.font = 'bold 11px system-ui';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                const text = dataset.yAxisID === 'y2' ? fmt.pct(value) : fmt.int(value);
+                ctx.fillText(text, element.x, element.y - 6);
+                ctx.restore();
+              }
+            });
+          }
+        });
       }
-    }
-  });
-
-  // 3) Adoption
-  state.charts.adoption = makeChart(document.getElementById('cAdoption'), {
-    type:'line',
-    data:{
-      labels: series.labels,
-      datasets:[
-        { label:'Доля подключивших услугу, %', data: series.adoptionPct, borderWidth:3, pointRadius:2, tension:0.25 }
-      ]
-    },
-    options:{
+    }],
+    options: {
       ...common,
-      plugins:{ ...common.plugins, tooltip:{ callbacks:{ label:(c)=> `${c.dataset.label}: ${fmt.pct(c.parsed.y)}` } } },
-      scales:{ ...common.scales, y:{ ...common.scales.y, suggestedMin: 0, suggestedMax: 100, ticks:{ callback:(v)=> `${v}%` } } }
-    }
-  });
-
-  // 4) Churn 2w
-  state.charts.churn2w = makeChart(document.getElementById('cChurn2w'), {
-    type:'line',
-    data:{
-      labels: series.labels,
-      datasets:[
-        { label:'Отключили после 2 недель, %', data: series.churn2wPct, borderWidth:3, pointRadius:2, tension:0.25 }
-      ]
-    },
-    options:{
-      ...common,
-      plugins:{ ...common.plugins, tooltip:{ callbacks:{ label:(c)=> `${c.dataset.label}: ${fmt.pct(c.parsed.y)}` } } },
-      scales:{ ...common.scales, y:{ ...common.scales.y, suggestedMin: 0, suggestedMax: 60, ticks:{ callback:(v)=> `${v}%` } } }
-    }
-  });
-
-  // 5) Savings
-  state.charts.savings = makeChart(document.getElementById('cSavings'), {
-    type:'line',
-    data:{
-      labels: series.labels,
-      datasets:[
-        { label:'Экономия селлеров, ₽', data: series.savings, borderWidth:3, pointRadius:2, tension:0.25 }
-      ]
-    },
-    options:{
-      ...common,
-      plugins:{ ...common.plugins, tooltip:{ callbacks:{ label:(c)=> `${c.dataset.label}: ${fmt.money(c.parsed.y)}` } } },
-      scales:{ ...common.scales, y:{ ...common.scales.y, ticks:{ callback:(v)=> fmt.int(v) } } }
-    }
-  });
-
-  // 6) Flow
-  state.charts.flow = makeChart(document.getElementById('cFlow'), {
-    type:'bar',
-    data:{
-      labels: series.labels,
-      datasets:[
-        { label:'Товары на проблемный стол, шт', data: series.inbound, borderWidth:0 }
-      ]
-    },
-    options:{
-      ...common,
-      plugins:{ ...common.plugins, tooltip:{ callbacks:{ label:(c)=> `${c.dataset.label}: ${fmt.int(c.parsed.y)} шт` } } },
-      scales:{ ...common.scales, y:{ ...common.scales.y, ticks:{ callback:(v)=> fmt.int(v) } } }
-    }
-  });
-
-  // 7) Success combo
-  state.charts.success = makeChart(document.getElementById('cSuccess'), {
-    data:{
-      labels: series.labels,
-      datasets:[
-        { type:'bar', label:'Успешно обработано, шт', data: series.success, borderWidth:0 },
-        { type:'line', label:'% успеха', data: series.successPct, yAxisID:'y2', borderWidth:3, pointRadius:2, tension:0.25 }
-      ]
-    },
-    options:{
-      ...common,
-      plugins:{
-        ...common.plugins,
-        tooltip:{
-          callbacks:{
-            label:(c)=>{
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'start',
+          labels: {
+            boxWidth: 12,
+            boxHeight: 12,
+            usePointStyle: true,
+            pointStyle: 'rect',
+            padding: 15,
+            font: { size: 12, weight: '600' }
+          }
+        },
+        tooltip: { 
+          callbacks: { 
+            label: (c)=> {
               if (c.dataset.yAxisID === 'y2') return `${c.dataset.label}: ${fmt.pct(c.parsed.y)}`;
               return `${c.dataset.label}: ${fmt.int(c.parsed.y)} шт`;
-            }
-          }
+            } 
+          } 
         }
       },
-      scales:{
-        x: common.scales.x,
-        y: { grid: common.scales.y.grid, ticks:{ callback:(v)=> fmt.int(v) } },
+      scales: {
+        x: { 
+          grid: { color: 'rgba(0,0,0,0.06)' }, 
+          ticks: { maxRotation: 0, autoSkip: false, font: { size: 11 } } 
+        },
+        y: { 
+          position: 'left',
+          grid: { color: 'rgba(0,0,0,0.06)' }, 
+          ticks: { callback: (v) => fmt.int(v) },
+          title: { display: true, text: 'шт', font: { weight: '600' } }
+        },
         y2: {
-          position:'right',
-          grid:{ drawOnChartArea:false },
-          suggestedMin:0, suggestedMax:100,
-          ticks:{ callback:(v)=> `${v}%` }
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          suggestedMin: 0,
+          suggestedMax: 100,
+          ticks: { callback: (v) => `${v}%` },
+          title: { display: true, text: '%', font: { weight: '600' } }
         }
       }
     }
@@ -1140,14 +1071,9 @@ function renderKPIs(kpis){
   el.innerHTML = '';
 
   const cards = [
-    { name:'North Star: доля баркод-проблем', val: fmt.pct(kpis.avgNorth), delta:`Ориентир: 28% / 18% / 11%` },
+    { name:'North Star: % на проблемные столы', val: fmt.pct(kpis.avgNorth), delta:'Доля обезлички → проблемные столы' },
     { name:'Поток на проблемный стол', val: `${fmt.int(kpis.totalInbound)} шт`, delta:'За выбранный период' },
     { name:'% успешно обработано', val: fmt.pct(kpis.successRate), delta:'Успех = успешно / поступившие' },
-    { name:'Экономия селлеров', val: fmt.money(kpis.totalSavings), delta:`Подключившие: ${fmt.int(kpis.sellersAdopted)} из ${fmt.int(kpis.sellersTotal)}` },
-    { name:'Доп. выручка (прокси)', val: fmt.money(kpis.totalRevenue), delta:'Мок-модель: успех * маржа' },
-    { name:'Adoption', val: fmt.pct(kpis.adoptionPct), delta:'Доля подключивших услугу' },
-    { name:'Churn 2 недели', val: fmt.pct(kpis.churn2wPct), delta:'Доля отключивших после 2 недель' },
-    { name:'Средняя экономия на товар', val: (kpis.totalInbound ? fmt.money(kpis.totalSavings / kpis.totalInbound) : fmt.money(0)), delta:'Экономия / поступившие' },
   ];
 
   for (const c of cards){
